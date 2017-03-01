@@ -9,8 +9,8 @@
  * published by the Free Software Foundation.
  *
  *************************************************************************
- *  Modified Date:  21/2/17
- *  File Version:   4.4.50
+ *  Modified Date:  27/2/17
+ *  File Version:   4.4.52
  ************************************************************************/
 #define DEBUG
 /*#define INTEL_MCLK_CONTROL*/
@@ -45,7 +45,6 @@
 #include <linux/version.h>
 #include "cx2072x.h"
 
-
 #define PLL_OUT_HZ_48 (1024*3*48000)
 #define CX2072X_REV_A2 0x00100002
 #define BITS_PER_SLOT 8
@@ -75,7 +74,6 @@ struct CX2072X_REG_DEF {
 #define REGISTER_ASSCESS_MASK 0x0F00
 #define REGISTER_VOLATILE_MASK 0x8000
 #define UNAVAILABLE 0
-
 
 static const struct CX2072X_REG_DEF cx2072x_regs[] = {
 	_REG(CX2072X_VENDOR_ID,			     4, RO, VO),
@@ -180,18 +178,18 @@ static const struct CX2072X_REG_DEF cx2072x_regs[] = {
 	_REG(CX2072X_MIXER_GAIN_RIGHT_1,	     1, RW, NV),
 	_REG(CX2072X_MIXER_GAIN_LEFT_1,		     1, RW, NV),
 	_REG(CX2072X_EQ_ENABLE_BYPASS,		     2, RW, NV),
-	_REG(CX2072X_EQ_B0_COEFF,			2, WO, VO),
-	_REG(CX2072X_EQ_B1_COEFF,			2, WO, VO),
-	_REG(CX2072X_EQ_B2_COEFF,			2, WO, VO),
-	_REG(CX2072X_EQ_A1_COEFF,			2, WO, VO),
-	_REG(CX2072X_EQ_A2_COEFF,			2, WO, VO),
-	_REG(CX2072X_EQ_G_COEFF,			1, WO, VO),
-	_REG(CX2072X_EQ_BAND,				1, WO, VO),
-	_REG(CX2072X_SPKR_DRC_ENABLE_STEP,		1, RW, NV),
-	_REG(CX2072X_SPKR_DRC_CONTROL,			4, RW, NV),
-	_REG(CX2072X_SPKR_DRC_TEST,			4, RW, NV),
-	_REG(CX2072X_DIGITAL_BIOS_TEST0,		4, RW, NV),
-	_REG(CX2072X_DIGITAL_BIOS_TEST2,		4, RW, NV),
+	_REG(CX2072X_EQ_B0_COEFF,		     2, WO, VO),
+	_REG(CX2072X_EQ_B1_COEFF,		     2, WO, VO),
+	_REG(CX2072X_EQ_B2_COEFF,		     2, WO, VO),
+	_REG(CX2072X_EQ_A1_COEFF,		     2, WO, VO),
+	_REG(CX2072X_EQ_A2_COEFF,		     2, WO, VO),
+	_REG(CX2072X_EQ_G_COEFF,		     1, WO, VO),
+	_REG(CX2072X_EQ_BAND,			     1, WO, VO),
+	_REG(CX2072X_SPKR_DRC_ENABLE_STEP,	     1, RW, NV),
+	_REG(CX2072X_SPKR_DRC_CONTROL,		     4, RW, NV),
+	_REG(CX2072X_SPKR_DRC_TEST,		     4, RW, NV),
+	_REG(CX2072X_DIGITAL_BIOS_TEST0,	     4, RW, NV),
+	_REG(CX2072X_DIGITAL_BIOS_TEST2,	     4, RW, NV),
 	_REG(CX2072X_I2SPCM_CONTROL1,		     4, RW, NV),
 	_REG(CX2072X_I2SPCM_CONTROL2,		     4, RW, NV),
 	_REG(CX2072X_I2SPCM_CONTROL3,		     4, RW, NV),
@@ -243,19 +241,17 @@ struct cx2072x_priv {
 	int audsmt_enable;
 	struct mutex lock;
 	unsigned int bclk_ratio;
-
 #ifdef ENABLE_MIC_POP_WA
 	struct delayed_work mic_pop_workq;
 #endif
-
 	bool plbk_eq_en;
-	bool plbk_drc_en;
-	bool plbk_dsp_changed;
-	bool plbk_dsp_init;
+	bool plbk_eq_en_changed;
+	bool plbk_eq_changed;
+	u8 plbk_eq[2][CX2072X_PLBK_EQ_BAND_NUM][CX2072X_PLBK_EQ_COEF_LEN];
 	int plbk_eq_channel;
-	int plbk_eq_band;
-	bool plbk_eq_update;
-	bool plbk_drc_update;
+	bool plbk_drc_en;
+	bool plbk_drc_en_changed;
+	bool plbk_drc_changed;
 	bool pll_changed;
 	bool i2spcm_changed;
 	int sample_size;
@@ -268,7 +264,6 @@ struct cx2072x_priv {
 	int tdm_slots;
 	u32 rev_id;
 	bool en_aec_ref;
-	u8 plbk_eq[2][CX2072X_PLBK_EQ_BAND_NUM][CX2072X_PLBK_EQ_COEF_LEN];
 	u8 plbk_drc[CX2072X_PLBK_DRC_PARM_LEN];
 	u8 classd_amp[CX2072X_CLASSD_AMP_LEN];
 	struct mutex eq_coeff_lock;
@@ -286,8 +281,8 @@ static const DECLARE_TLV_DB_SCALE(dac_tlv, -7400, 100, 0);
 static const DECLARE_TLV_DB_SCALE(boost_tlv, 0, 1200, 0);
 
 struct CX2072X_EQ_CTRL {
-	int ch;
-	int band;
+	u8 ch;
+	u8 band;
 };
 
 
@@ -416,7 +411,7 @@ static const struct reg_default cx2072x_reg_defaults[] = {
 	{ 0x55a0, 0x0000004a },	/*2072X_MIXER_GAIN_LEFT_0 */
 	{ 0x5584, 0x0000004a },	/*2072X_MIXER_GAIN_RIGHT_1 */
 	{ 0x55a4, 0x0000004a },	/*2072X_MIXER_GAIN_LEFT_1 */
-	{ 0x6d00, 0x0000720c },	/*2072X_EQ_ENABLE_BYPASS */
+	/*{ 0x6d00, 0x0000720c },	*//*2072X_EQ_ENABLE_BYPASS */
 	{ 0x6d10, 0x040065a4 },	/*2072X_SPKR_DRC_ENABLE_STEP */
 	{ 0x6d14, 0x007b0024 },	/*2072X_SPKR_DRC_CONTROL */
 	{ 0X6D18, 0x00000000 },	/*2072X_SPKR_DRC_TEST */
@@ -464,10 +459,11 @@ static const struct reg_sequence cx2072x_patch[] = {
 static const struct reg_default cx2072x_patch[] = {
 #endif
 	{ 0x71A4, 0x080 }, /* DC offset Calibration	   */
-	{ 0x71a8, 0x287 }, /* Set max spk power to 1.5 W   */
-	{ 0x7328, 0xa8c }, /* Set average spk power to 1.5W*/
-	{ 0x7310, 0xf01 }, /*				  */
-	{ 0x7328, 0xa8f }, /*				   */
+	{ 0x7328, 0x65f }, /* disable the PA*/
+	{ 0x71a8, 0x289 }, /* Set the spkeaer output gain*/
+	{ 0x7310, 0xf05 }, /*				 */
+	{ 0x7290, 0x380 }, /*				 */
+	{ 0x7328, 0xb90 }, /*				 */
 	{ 0x7124, 0x001 }, /* Enable 30 Hz High pass filter*/
 	{ 0x718c, 0x300 }, /* Disable PCBEEP pad	   */
 	{ 0x731c, 0x100 }, /* Disable SnM mode		   */
@@ -614,16 +610,15 @@ static int cx2072x_reg_bulk_write(struct snd_soc_codec *codec,
 {
 	/*fix me*/
 	struct i2c_client *client = to_i2c_client(codec->dev);
-	uint8_t buf[2 + MAC_EQ_COEFF];
+	uint8_t buf[2 + MAX_EQ_COEFF];
+#ifdef CXDBG_REG_DUMP
+	int i,addr;
+#endif
 	int ret;
 	struct device *dev = &client->dev;
 
-#ifdef CXDBG_REG_DUMP
-	dev_dbg(dev, "I2C bulk write address %40s,%d\n",
-		cx2072x_get_reg_name(dev, reg), val_count);
-#endif
 
-	if (val_count > MAC_EQ_COEFF) {
+	if (val_count > MAX_EQ_COEFF) {
 		dev_err(dev,
 			"cx2072x_reg_bulk_write failed, writing count = %d\n",
 			val_count);
@@ -635,6 +630,20 @@ static int cx2072x_reg_bulk_write(struct snd_soc_codec *codec,
 
 	memcpy(&buf[2], val, val_count);
 
+#ifdef CXDBG_REG_DUMP
+	dev_dbg(dev, "I2C bulk write address %40s,%d\n",
+		cx2072x_get_reg_name(dev, reg), val_count);
+
+	addr = reg;
+	for (i = 0;i < val_count; i++)
+	{
+		dev_dbg(dev, "%04x: %02x\n",
+			addr,buf[2+i]);
+		addr++;
+	}
+
+	dev_dbg(dev, "done\n");
+#endif
 	ret = i2c_master_send(client, buf, val_count + 2);
 	if (ret == val_count + 2)
 		return 0;
@@ -885,6 +894,7 @@ static int cx2072x_config_i2spcm(struct cx2072x_priv *cx2072x)
 			dev_dbg(dev, "Sets Master mode\n");
 		}
 		break;
+
 	case SND_SOC_DAIFMT_CBS_CFS:
 		reg2.r.tx_master = 0;
 		reg3.r.rx_master = 0;
@@ -967,6 +977,9 @@ static int cx2072x_config_i2spcm(struct cx2072x_priv *cx2072x)
 
 	reg2.r.tx_endian_sel = is_big_endian ? 0 : 1;
 	reg2.r.tx_dstart_dly = has_one_bit_delay;
+	if (cx2072x->en_aec_ref) {
+		reg2.r.tx_dstart_dly = 0;
+	}
 
 	reg3.r.rx_endian_sel = is_big_endian ? 0 : 1;
 	reg3.r.rx_dstart_dly = has_one_bit_delay;
@@ -979,7 +992,10 @@ static int cx2072x_config_i2spcm(struct cx2072x_priv *cx2072x)
 		reg3.r.rx_en_ch1 = 1;
 		reg3.r.rx_en_ch2 = 1;
 		reg3.r.rx_slot_1 = 0;
-		reg3.r.rx_slot_2 = i2s_right_slot;
+		if (cx2072x->en_aec_ref)
+			reg3.r.rx_slot_2 = 0;
+		else
+			reg3.r.rx_slot_2 = i2s_right_slot;
 		reg6.r.rx_pause_start_pos = i2s_right_pause_pos;
 		reg6.r.rx_pause_cycles = i2s_right_pause_interval;
 		reg6.r.tx_pause_start_pos = i2s_right_pause_pos;
@@ -1051,62 +1067,69 @@ static int cx2072x_config_i2spcm(struct cx2072x_priv *cx2072x)
 	return 0;
 }
 
-
-static void cx2072x_dsp_init(struct snd_soc_codec *codec)
+static void cx2072x_update_eq_coeff(struct snd_soc_codec *codec)
 {
- struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
-	int band, channel, value;
+	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
+	int band, ch, value;
 
-	band = cx2072x->plbk_eq_band;
-	channel = cx2072x->plbk_eq_channel;
+	dev_dbg(cx2072x->dev, "Update eq\n");
+
+	if (!cx2072x->plbk_eq_changed) return ;
+	/* set EQ to bypass mode before configuring the EQ settings */
 	regmap_write(cx2072x->regmap, CX2072X_EQ_ENABLE_BYPASS, 0x6e0f);
 
-	if (cx2072x->plbk_eq_update) {
-		cx2072x_reg_bulk_write(codec, CX2072X_EQ_B0_COEFF,
-				       cx2072x->plbk_eq[channel][band],
-				       MAC_EQ_COEFF);
-		value = band + (channel << 3) + (1 << 6);
-		regmap_write(cx2072x->regmap, CX2072X_EQ_BAND, value);
-		mdelay(5);
-		cx2072x->plbk_eq_update = false;
-	}
+	for (ch = 0; ch < 2; ch++)
+		for (band = 0; band < CX2072X_PLBK_EQ_BAND_NUM; band++) {
+			cx2072x_reg_bulk_write(codec, CX2072X_EQ_B0_COEFF,
+				               &cx2072x->plbk_eq[ch][band][0],
+					       MAX_EQ_COEFF);
+			value = band + (ch << 3) + (1 << 6);
+			regmap_write(cx2072x->regmap, CX2072X_EQ_BAND, value);
+			mdelay(5);
+		}
 
-	if (cx2072x->plbk_drc_update) {
-		cx2072x_reg_bulk_write(codec, CX2072X_SPKR_DRC_ENABLE_STEP,
-			cx2072x->plbk_drc, MAX_DRC_REGS);
-		cx2072x->plbk_drc_update = false;
+	cx2072x->plbk_eq_changed = false;
+	cx2072x->plbk_eq_en_changed = true;
+
+}
+
+static void cx2072x_update_eq_en(struct snd_soc_codec *codec)
+{
+	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
+
+	dev_dbg(cx2072x->dev, "Update en eq%d\n", cx2072x->plbk_eq_en_changed);
+
+	if (cx2072x->plbk_eq_en_changed) {
+		if (cx2072x->plbk_eq_en)
+			regmap_write(cx2072x->regmap,
+				       CX2072X_EQ_ENABLE_BYPASS, 0x6e03);
+		else
+			regmap_write(cx2072x->regmap,
+				       CX2072X_EQ_ENABLE_BYPASS, 0x6e0c);
+
+		cx2072x->plbk_eq_en_changed = false;
 	}
 }
 
-static void cx2072x_update_dsp(struct snd_soc_codec *codec)
+static void cx2072x_update_drc(struct snd_soc_codec *codec)
 {
-	unsigned int afg_reg;
+	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
+
+	if (cx2072x->plbk_drc_changed) {
+		cx2072x_reg_bulk_write(codec, CX2072X_SPKR_DRC_ENABLE_STEP,
+			cx2072x->plbk_drc, MAX_DRC_REGS);
+		cx2072x->plbk_drc_changed = false;
+		cx2072x->plbk_drc_en_changed = true;
+	}
+}
+
+static void cx2072x_update_drc_en(struct snd_soc_codec *codec)
+{
 	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
 	u8 drc_status = cx2072x->plbk_drc[0];
 
-	regmap_read(cx2072x->regmap, CX2072X_AFG_POWER_STATE, &afg_reg);
-
-	if ((afg_reg & 0xf) != 0)
-		/*skip since device is on D3 mode*/
+	if (!cx2072x->plbk_drc_en_changed)
 		return;
-
-
-	if (!cx2072x->plbk_dsp_changed)
-		/*nothing change*/
-		return;
-
-
-
-	if (cx2072x->plbk_eq_update || cx2072x->plbk_drc_update)
-		cx2072x_dsp_init(codec);
-
-
-	if (cx2072x->plbk_eq_en)
-		regmap_write(cx2072x->regmap, CX2072X_EQ_ENABLE_BYPASS,
-			0x6203);
-	else
-		regmap_write(cx2072x->regmap, CX2072X_EQ_ENABLE_BYPASS,
-			0x620c);
 
 	if (cx2072x->plbk_drc_en) {
 		drc_status |= 0x1;
@@ -1120,7 +1143,27 @@ static void cx2072x_update_dsp(struct snd_soc_codec *codec)
 		cx2072x->plbk_drc[0] = drc_status;
 	}
 
-	cx2072x->plbk_dsp_changed = false;
+	cx2072x->plbk_drc_en_changed = false;
+}
+
+static void cx2072x_update_dsp(struct snd_soc_codec *codec)
+{
+	unsigned int afg_reg;
+	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
+
+	regmap_read(cx2072x->regmap, CX2072X_AFG_POWER_STATE, &afg_reg);
+
+	if ((afg_reg & 0xf) != 0)
+		/*skip since device is on D3 mode*/
+		return;
+
+	cx2072x_update_eq_coeff(codec);
+
+	cx2072x_update_eq_en(codec);
+
+	cx2072x_update_drc(codec);
+
+	cx2072x_update_drc_en(codec);
 }
 
 
@@ -1269,7 +1312,7 @@ static int cx2072x_plbk_eq_en_put(struct snd_kcontrol *kcontrol,
 
 	if (cx2072x->plbk_eq_en != enable) {
 		cx2072x->plbk_eq_en = enable;
-		cx2072x->plbk_dsp_changed = true;
+		cx2072x->plbk_eq_en_changed = true;
 		cx2072x_update_dsp(codec);
 	}
 	return 0;
@@ -1317,7 +1360,7 @@ static int cx2072x_plbk_drc_en_put(struct snd_kcontrol *kcontrol,
 
 	if (cx2072x->plbk_drc_en != enable) {
 		cx2072x->plbk_drc_en = enable;
-		cx2072x->plbk_dsp_changed = true;
+		cx2072x->plbk_drc_en_changed = true;
 		cx2072x_update_dsp(codec);
 	}
 
@@ -1343,7 +1386,7 @@ static int cx2072x_plbk_eq_get(struct snd_kcontrol *kcontrol,
 #endif
 	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
 	struct CX2072X_EQ_CTRL *eq =
-		(struct CX2072X_EQ_CTRL *) kcontrol->private_value;
+		(void *) kcontrol->private_value;
 	u8 *param = ucontrol->value.bytes.data;
 	u8 *cache = cx2072x->plbk_eq[eq->ch][eq->band];
 
@@ -1369,12 +1412,9 @@ static int cx2072x_plbk_eq_put(struct snd_kcontrol *kcontrol,
 	mutex_lock(&cx2072x->eq_coeff_lock);
 	memcpy(cache, param, CX2072X_PLBK_EQ_COEF_LEN);
 
-	cx2072x->plbk_dsp_changed = true;
-	cx2072x->plbk_eq_update = true;
-	cx2072x->plbk_eq_channel = eq->ch;
-	cx2072x->plbk_eq_band = eq->band;
-	cx2072x_update_dsp(codec);
 	mutex_unlock(&cx2072x->eq_coeff_lock);
+	cx2072x->plbk_eq_changed = true;
+	cx2072x_update_dsp(codec);
 	return 0;
 }
 
@@ -1425,7 +1465,6 @@ static int cx2072x_classd_level_put(struct snd_kcontrol *kcontrol,
 			&cx2072x->classd_amp[2], 2);
 	cx2072x_reg_bulk_write(codec, CX2072X_CODEC_TEST26,
 			&cx2072x->classd_amp[4], 2);
-
 	return 0;
 }
 
@@ -1469,8 +1508,7 @@ static int cx2072x_plbk_drc_put(struct snd_kcontrol *kcontrol,
 
 	memcpy(cache, param, CX2072X_PLBK_DRC_PARM_LEN);
 
-	cx2072x->plbk_dsp_changed = true;
-	cx2072x->plbk_drc_update = true;
+	cx2072x->plbk_drc_changed = true;
 	cx2072x_update_dsp(codec);
 
 	return 0;
@@ -1478,14 +1516,11 @@ static int cx2072x_plbk_drc_put(struct snd_kcontrol *kcontrol,
 
 #define CX2072X_PLBK_DRC_COEF(xname) \
 {	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
-	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE, \
 	.info = cx2072x_plbk_drc_info, \
 	.get = cx2072x_plbk_drc_get, .put = cx2072x_plbk_drc_put}
 
 #define CX2072X_PLBK_EQ_COEF(xname, xch, xband) \
 {	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
-	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE | \
-		  SNDRV_CTL_ELEM_ACCESS_VOLATILE, \
 	.info = cx2072x_plbk_eq_info, \
 	.get = cx2072x_plbk_eq_get, .put = cx2072x_plbk_eq_put, \
 	.private_value = \
@@ -1494,7 +1529,6 @@ static int cx2072x_plbk_drc_put(struct snd_kcontrol *kcontrol,
 
 #define CX2072X_PLBK_DSP_EQ_SWITCH(xname) \
 {	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = (xname), \
-	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE, \
 	.info = cx2072x_plbk_eq_en_info, \
 	.get = cx2072x_plbk_eq_en_get, .put = cx2072x_plbk_eq_en_put}
 
@@ -1702,14 +1736,40 @@ static int cx2072x_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 10, 0))
+static int cx2072x_prepare(struct snd_pcm_substream *substream,
+			      struct snd_soc_dai *dai)
+{
+	struct snd_soc_codec *codec = dai->codec;
+	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
+
+	/* set active */
+	regmap_write(cx2072x->regmap, CX2072X_AFG_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_PORTA_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_PORTB_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_PORTC_POWER_STATE, 3);
+	regmap_write(cx2072x->regmap, CX2072X_PORTD_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_PORTE_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_PORTG_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_MIXER_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_ADC1_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_ADC2_POWER_STATE, 3);
+	regmap_write(cx2072x->regmap, CX2072X_DAC1_POWER_STATE, 0);
+	regmap_write(cx2072x->regmap, CX2072X_DAC2_POWER_STATE, 3);
+	return 0;
+}
+#endif
+
 static void cx2072x_shutdown(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
 	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
 
+	dev_dbg(cx2072x->dev,"dai_shutdown()\n");
 	/* shutdown codec. */
 	if (!snd_soc_codec_is_active(codec)) {
+		dev_dbg(cx2072x->dev,"dai_shutdown()-turn off!\n");
 		regcache_cache_only(cx2072x->regmap, false);
 		regmap_write(cx2072x->regmap, CX2072X_PORTA_POWER_STATE, 3);
 		regmap_write(cx2072x->regmap, CX2072X_PORTB_POWER_STATE, 3);
@@ -1717,6 +1777,7 @@ static void cx2072x_shutdown(struct snd_pcm_substream *substream,
 		regmap_write(cx2072x->regmap, CX2072X_PORTD_POWER_STATE, 3);
 		regmap_write(cx2072x->regmap, CX2072X_PORTE_POWER_STATE, 3);
 		regmap_write(cx2072x->regmap, CX2072X_PORTG_POWER_STATE, 3);
+		regmap_write(cx2072x->regmap, CX2072X_MIXER_POWER_STATE, 3);
 		regmap_write(cx2072x->regmap, CX2072X_ADC1_POWER_STATE, 3);
 		regmap_write(cx2072x->regmap, CX2072X_ADC2_POWER_STATE, 3);
 		regmap_write(cx2072x->regmap, CX2072X_DAC1_POWER_STATE, 3);
@@ -1745,8 +1806,10 @@ static int cx2072x_set_dai_sysclk(struct snd_soc_dai *dai, int clk_id,
 
 	switch (clk_id) {
 	case CX2072X_MCLK_EXTERNAL_PLL:
-		if (cx2072x->mclk && clk_set_rate(cx2072x->mclk, freq))
+		if (cx2072x->mclk && clk_set_rate(cx2072x->mclk, freq)){
+			dev_err(codec->dev, "set clk rate failed\n");
 			return -EINVAL;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -1973,9 +2036,9 @@ static void cx2072x_sw_reset(struct cx2072x_priv *cx2072x)
 
 static int cx2072x_init(struct snd_soc_codec *codec)
 {
+	int ch, band=0;
 	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
 
-	cx2072x->plbk_dsp_changed = true;
 
 	regmap_write(cx2072x->regmap, CX2072X_AFG_POWER_STATE, 0);
 	/* reduce the jack monitor time*/
@@ -1987,6 +2050,15 @@ static int cx2072x_init(struct snd_soc_codec *codec)
 	regmap_update_bits(cx2072x->regmap, CX2072X_PORTC_PIN_CTRL,
 		0x20, 0x20);
 
+	cx2072x->plbk_eq_changed = true;
+	cx2072x->plbk_drc_changed = true;
+
+	/*use flat eq by default */
+	for (ch = 0 ; ch < 2 ; ch++)
+		for (band = 0; band < CX2072X_PLBK_EQ_BAND_NUM; band++) {
+			cx2072x->plbk_eq[ch][band][1] = 64;
+			cx2072x->plbk_eq[ch][band][10] = 3;
+		}
 
 	/*enable bclk and EAPD input*/
 	if (cx2072x->rev_id == CX2072X_REV_A2)
@@ -2019,7 +2091,9 @@ enum snd_soc_bias_level level)
 
 		if (old_level == SND_SOC_BIAS_OFF) {
 			if (cx2072x->mclk) {
-				dev_dbg(cx2072x->dev, "Turn on MCLK\n");
+				dev_dbg(cx2072x->dev,
+					"Turn on MCLK with rate %d\n",
+					cx2072x->mclk_rate);
 				ret = clk_prepare_enable(cx2072x->mclk);
 				if (ret)
 					return ret;
@@ -2044,6 +2118,8 @@ enum snd_soc_bias_level level)
 		dev_dbg(codec->dev, "cache only\n");
 		regcache_mark_dirty(cx2072x->regmap);
 		regcache_cache_only(cx2072x->regmap, true);
+		cx2072x->plbk_eq_changed = true;
+		cx2072x->plbk_drc_changed = true;
 		if (cx2072x->mclk) {
 			dev_dbg(cx2072x->dev, "Turn off MCLK\n");
 			clk_disable_unprepare(cx2072x->mclk);
@@ -2067,7 +2143,7 @@ static int cx2072x_probe(struct snd_soc_codec *codec)
 	codec->control_data = cx2072x->regmap;
 
 
-	dev_dbg(codec->dev, "codec version: 4.4.50\n");
+	dev_dbg(codec->dev, "codec version: 4.4.52\n");
 	regmap_read(cx2072x->regmap, CX2072X_VENDOR_ID, &ven_id);
 	regmap_read(cx2072x->regmap, CX2072X_REVISION_ID, &cx2072x->rev_id);
 	dev_dbg(codec->dev, "codec version: %08x,%08x\n",
@@ -2081,8 +2157,16 @@ static int cx2072x_probe(struct snd_soc_codec *codec)
 		ret = PTR_ERR(cx2072x->mclk);
 		if (ret == -ENOENT) {
 			cx2072x->mclk = NULL;
-			dev_warn(codec->dev, "Assuming static MCLK\n");
 			ret = 0;
+
+			dev_warn(codec->dev, "try pmc_plt_clk_3\n");
+			cx2072x->mclk = devm_clk_get(codec->dev, "pmc_plt_clk_3");
+
+			if (IS_ERR(cx2072x->mclk))
+			{
+				dev_warn(codec->dev, "Assuming static MCLK\n");
+					cx2072x->mclk = NULL;
+			}
 		} else {
 			dev_err(codec->dev, "Failed to get MCLK: %d\n", ret);
 			return ret;
@@ -2114,6 +2198,7 @@ static int cx2072x_remove(struct snd_soc_codec *codec)
 {
 	struct cx2072x_priv *cx2072x = get_cx2072x_priv(codec);
 	/*power off device*/
+	dev_dbg(cx2072x->dev,"dai_removee()\n");
 	cx2072x_set_bias_level(cx2072x->codec, SND_SOC_BIAS_OFF);
 	return 0;
 }
@@ -2354,6 +2439,9 @@ static struct snd_soc_dai_ops cx2072x_dai_ops = {
 	.set_fmt = cx2072x_set_dai_fmt,
 	.set_tdm_slot = cx2072x_set_tdm_slot,
 	.hw_params = cx2072x_hw_params,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 10, 0))
+	.prepare = cx2072x_prepare,
+#endif
 	.shutdown = cx2072x_shutdown,
 	.set_bclk_ratio = cx2072x_set_dai_bclk_ratio,
 };
@@ -2361,6 +2449,8 @@ static struct snd_soc_dai_ops cx2072x_dai_ops = {
 static int cx2072x_dsp_dai_probe(struct snd_soc_dai *dai)
 {
 	struct cx2072x_priv *cx2072x = get_cx2072x_priv(dai->codec);
+
+	dev_dbg(cx2072x->dev,"dsp_dai_probe()\n");
 
 	cx2072x->en_aec_ref = true;
 	return 0;
@@ -2423,7 +2513,6 @@ static const struct regmap_config cx2072x_regmap = {
 	.max_register = CX2072X_REG_MAX, .reg_defaults = cx2072x_reg_defaults,
 	.num_reg_defaults = ARRAY_SIZE(cx2072x_reg_defaults),
 	.cache_type = REGCACHE_RBTREE,
-
 	.readable_reg = cx2072x_readable_register,
 	.volatile_reg = cx2072x_volatile_register,
 	/* Needs custom READ/WRITE functions
@@ -2485,16 +2574,17 @@ static int cx2072x_i2c_probe(struct i2c_client *i2c,
 
 static int cx2072x_i2c_remove(struct i2c_client *client)
 {
-	snd_soc_unregister_codec(&client->dev);
+	struct cx2072x_priv *cx2072x = i2c_get_clientdata(client);
 
+	dev_dbg(cx2072x->dev,"i2c_remove()\n");
+	snd_soc_unregister_codec(&client->dev);
 	return 0;
 }
 
 static void cx2072x_i2c_shutdown(struct i2c_client *client)
 {
-	/*
-	 * struct cx2072x_priv *cx2072x = i2c_get_clientdata(client);
-	 */
+	struct cx2072x_priv *cx2072x = i2c_get_clientdata(client);
+	dev_dbg(cx2072x->dev,"i2c_shutdown()\n");
 }
 
 
@@ -2505,7 +2595,6 @@ const struct dev_pm_ops cx2072x_pm_ops = {
 static const struct i2c_device_id cx2072x_i2c_id[] = {
 	{ "cx20721", 0 },
 	{ "cx20723", 0 },
-	{ "14F10720", 0 },
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, cx2072x_i2c_id);
@@ -2533,7 +2622,9 @@ static struct i2c_driver cx2072x_i2c_driver = {
 	.id_table = cx2072x_i2c_id,
 	.driver = {
 		.name = "cx2072x",
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 11, 0))
 		.owner = THIS_MODULE,
+#endif
 		.of_match_table = cx2072x_of_match,
 #ifdef CONFIG_ACPI
 		.acpi_match_table = ACPI_PTR(cx2072x_acpi_match),
