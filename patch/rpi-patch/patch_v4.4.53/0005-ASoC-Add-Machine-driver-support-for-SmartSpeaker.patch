@@ -1,7 +1,7 @@
-From f9595f7ec2bce83325955c3d61cd7aab2f875781 Mon Sep 17 00:00:00 2001
+From a50499f67e84ef911797726f0c21eca7cd9d1cdc Mon Sep 17 00:00:00 2001
 From: Simon Ho <simon.ho@conexant.com>
 Date: Wed, 22 Feb 2017 07:20:28 +0800
-Subject: [PATCH 5/6] ASoC: Add Machine driver support for SmartSpeaker
+Subject: [PATCH 5/7] ASoC: Add Machine driver support for SmartSpeaker
 
 Add ASoC Machine driver support for Smart Speaker USB on RPi platform.
 

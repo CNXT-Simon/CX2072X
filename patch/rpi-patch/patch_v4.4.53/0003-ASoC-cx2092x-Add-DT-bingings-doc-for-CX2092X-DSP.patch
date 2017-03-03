@@ -1,7 +1,7 @@
-From 18eec57d461fc760142a183a72f2491a454bc75c Mon Sep 17 00:00:00 2001
+From e7ab5fef435c11e420be8effb3da36f0f11cbbea Mon Sep 17 00:00:00 2001
 From: Simon Ho <simon.ho@conexant.com>
 Date: Wed, 22 Feb 2017 05:00:25 +0800
-Subject: [PATCH 3/6] ASoC: cx2092x: Add DT bingings doc for CX2092X DSP
+Subject: [PATCH 3/7] ASoC: cx2092x: Add DT bingings doc for CX2092X DSP
 
 Initial version of CX2092X device tree bindings document.
 
