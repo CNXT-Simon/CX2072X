@@ -1,7 +1,7 @@
 From 112f825c2b4ded2d24307f844ac556e15a3a14ed Mon Sep 17 00:00:00 2001
 From: Simon Ho <simon.ho@conexant.com>
 Date: Wed, 22 Feb 2017 05:15:11 +0800
-Subject: [PATCH 4/7] ASoC: Add driver support for Conexant CX2092X DSP
+Subject: [PATCH 4/8] ASoC: Add driver support for Conexant CX2092X DSP
 
 Initial commit of Conexant CX20921/CX20924 I2S Audio DSP driver
 

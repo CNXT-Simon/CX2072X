@@ -1,7 +1,7 @@
 From 67518f9db3b9926a202c3549ac7825557beb19c6 Mon Sep 17 00:00:00 2001
 From: Simon Ho <simon.ho@conexant.com>
 Date: Wed, 22 Feb 2017 04:48:05 +0800
-Subject: [PATCH 2/7] ASoC: Add driver support for Conexant CX2072X I2S Audio
+Subject: [PATCH 2/8] ASoC: Add driver support for Conexant CX2072X I2S Audio
  codec
 
 Initial commit of Conexant CX20721/CX20724 I2S Audio Codec.

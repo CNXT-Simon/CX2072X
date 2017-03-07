@@ -1,7 +1,7 @@
 From 38d7c4674fbd690c63aab262205cbf474951daab Mon Sep 17 00:00:00 2001
 From: Simon Ho <simon.ho@conexant.com>
 Date: Wed, 22 Feb 2017 08:16:40 +0800
-Subject: [PATCH 6/7] ASoC: Add Mahine driver for SmartSpeaker (I2S)
+Subject: [PATCH 6/8] ASoC: Add Mahine driver for SmartSpeaker (I2S)
 
 Add ASoC Machine driver for SmartSpeaker EVK (I2S) interface.
 

@@ -1,7 +1,7 @@
 From cff137c6653e934511c73ced96afa40087b63a09 Mon Sep 17 00:00:00 2001
 From: Simon Ho <simon.ho@conexant.com>
 Date: Fri, 16 Dec 2016 23:05:19 +0800
-Subject: [PATCH 1/7] ASoC: cx2072x: Add DT bingings documentation for CX2072X
+Subject: [PATCH 1/8] ASoC: cx2072x: Add DT bingings documentation for CX2072X
  CODEC
 
 Initial version of CX2072X device tree bindings document.

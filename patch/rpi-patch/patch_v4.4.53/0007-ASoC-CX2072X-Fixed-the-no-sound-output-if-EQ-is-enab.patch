@@ -1,7 +1,7 @@
 From ebf2b03ed9456c8640a36c17872a00750944746f Mon Sep 17 00:00:00 2001
 From: Simon Ho <simon.ho@conexant.com>
 Date: Wed, 1 Mar 2017 14:15:00 -0800
-Subject: [PATCH 7/7] ASoC: CX2072X: Fixed the no sound output if EQ is
+Subject: [PATCH 7/8] ASoC: CX2072X: Fixed the no sound output if EQ is
  enabled.
 
 Fixed the no sound issue casued by EQ. also changed back the idle power
